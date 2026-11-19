@@ -1,28 +1,24 @@
 extends Node2D
 
 const ENEMY_SCRIPT = preload("res://enemy.gd")
-const PICKUP_SCRIPT = preload("res://pickup.gd")
-const ATTACK_UP_SFX = preload("res://assets/audio/attack_upgrade.wav")
-const DEFENSE_UP_SFX = preload("res://assets/audio/defense_upgrade.wav")
 const MISSILE_LAUNCH_SFX = preload("res://assets/audio/missile_launch.wav")
 const MISSILE_IMPACT_SFX = preload("res://assets/audio/missile_impact.wav")
 const ENEMY_HIT_SFX = preload("res://assets/audio/enemy_hit.wav")
 const HOUSE_ATTACK_SFX = preload("res://assets/audio/house_attack.wav")
 const HOUSE_EXPLOSION_SFX = preload("res://assets/audio/house_explosion.wav")
-const BOMB_EXPLOSION_SFX = preload("res://assets/audio/bomb_explosion.wav")
 var ground: TileMapLayer
 var player: Node2D
 
 var half_damaged: Dictionary = {}
 var missile_level := 1
-var defense_level := 1
 var game_over := false
 var game_won := false
 var house_lives := 10
+const EXCAVATOR_MAX_HEALTH := 3
+var excavator_health := EXCAVATOR_MAX_HEALTH
 var rng := RandomNumberGenerator.new()
 var map_bounds := Rect2i()
 var house: Node2D
-var turret_timer := 0.0
 var game_over_overlay: Control
 
 func _ready() -> void:
@@ -79,36 +75,11 @@ func fire_hit(cell: Vector2i, level: int) -> void:
 			for x in range(-1, 2):
 				damage_dirt(cell + Vector2i(x, y), 2)
 
-func is_bomb(cell: Vector2i) -> bool:
-	for bomb in get_tree().get_nodes_in_group("bombs"):
-		if ground.local_to_map(ground.to_local(bomb.global_position)) == cell:
-			return true
-	return false
-
-func detonate_bomb(cell: Vector2i) -> void:
-	play_sfx(BOMB_EXPLOSION_SFX, 0.0)
-	for bomb in get_tree().get_nodes_in_group("bombs"):
-		if ground.local_to_map(ground.to_local(bomb.global_position)) == cell:
-			bomb.queue_free()
-	var center := ground.to_global(ground.map_to_local(cell))
-	for y in range(-2, 3):
-		for x in range(-2, 3):
-			damage_dirt(cell + Vector2i(x, y), 2)
-			for enemy in get_tree().get_nodes_in_group("enemies"):
-				if ground.local_to_map(ground.to_local(enemy.global_position)) == cell + Vector2i(x, y):
-					enemy.queue_free()
-	_spawn_flash(center)
-
-func _process(delta: float) -> void:
+func _process(_delta: float) -> void:
 	if game_over:
 		return
 	if game_won:
 		return
-	if defense_level >= 2:
-		turret_timer -= delta
-		if turret_timer <= 0.0:
-			_fire_house_missile()
-			turret_timer = 10.0 if defense_level == 2 else 5.0
 	_check_win()
 
 func damage_house(amount: int = 1) -> void:
@@ -120,41 +91,15 @@ func damage_house(amount: int = 1) -> void:
 	if house_lives <= 0:
 		start_game_over()
 
-func hit_pickup(pickup: Node) -> void:
-	if pickup.kind == "missile":
-		var previous_level := missile_level
-		missile_level = mini(3, missile_level + 1)
-		if missile_level > previous_level:
-			_play_upgrade_sfx(ATTACK_UP_SFX)
-	elif pickup.kind == "defense":
-		var previous_level := defense_level
-		defense_level = mini(3, defense_level + 1)
-		if defense_level > previous_level:
-			_play_upgrade_sfx(DEFENSE_UP_SFX)
-			turret_timer = 10.0 if defense_level == 2 else 5.0
-	elif pickup.kind == "heart":
-		house_lives = mini(10, house_lives + 1)
-		queue_redraw()
-	pickup.queue_free()
-
-func _fire_house_missile() -> void:
-	var nearest: Node2D = null
-	var nearest_distance := INF
-	for enemy in get_tree().get_nodes_in_group("enemies"):
-		var distance := house.global_position.distance_squared_to(enemy.global_position)
-		if distance < nearest_distance:
-			nearest = enemy
-			nearest_distance = distance
-	if nearest == null:
+func damage_excavator(amount: int = 1) -> void:
+	if game_over or game_won:
 		return
-	var missile := preload("res://missile.tscn").instantiate()
-	missile.global_position = house.global_position + Vector2(0, -8)
-	missile.direction = (nearest.global_position - missile.global_position).normalized()
-	missile.level = 1
-	missile.house_shot = true
-	missile.target = nearest
-	get_parent().add_child(missile)
-	play_missile_launch_sound()
+	excavator_health = maxi(0, excavator_health - amount)
+	queue_redraw()
+	if excavator_health <= 0:
+		game_over = true
+		game_over_overlay.begin_player_fire_at_world_position(player.global_position)
+		_freeze_round_entities()
 
 func start_game_over() -> void:
 	game_over = true
@@ -167,8 +112,6 @@ func _freeze_round_entities() -> void:
 		enemy.set_process(false)
 	for missile in get_tree().get_nodes_in_group("missiles"):
 		missile.set_process(false)
-	for pickup in get_tree().get_nodes_in_group("pickups"):
-		pickup.set_process(false)
 
 func _unhandled_input(event: InputEvent) -> void:
 	if game_over and event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_R:
@@ -188,46 +131,21 @@ func _on_round_choice(choice: String) -> void:
 		game_over_overlay.show_pending("NEXT ROUND IS THE NEXT TASK")
 
 func _spawn_dirt_result(world_position: Vector2) -> void:
-	var roll := rng.randf()
-	if roll < 0.30:
-		var cell := ground.local_to_map(ground.to_local(world_position))
-		var player_cell := ground.local_to_map(ground.to_local(player.global_position))
-		if cell.y - player_cell.y <= 4:
-			return
-		var hp_roll := rng.randf()
-		var hp := 1 if hp_roll < 0.50 else (2 if hp_roll < 0.80 else 3)
-		var count := rng.randi_range(1, 3)
-		for i in range(count):
-			var enemy := Node2D.new()
-			enemy.set_script(ENEMY_SCRIPT)
-			add_child(enemy)
-			enemy.global_position = world_position + Vector2(rng.randi_range(-12, 12), rng.randi_range(-12, 12))
-			enemy.setup(hp, player, ground, self, rng.randi())
-	elif roll < 0.40:
-		_spawn_pickup(world_position, "missile")
-	elif roll < 0.50:
-		_spawn_pickup(world_position, "defense")
-	elif roll < 0.60:
-		_spawn_pickup(world_position, "bomb")
-	elif roll < 0.65:
-		_spawn_pickup(world_position, "heart")
-
-func _spawn_pickup(world_position: Vector2, kind: String) -> void:
-	var pickup := Node2D.new()
-	pickup.set_script(PICKUP_SCRIPT)
-	add_child(pickup)
-	pickup.global_position = world_position
-	pickup.setup(kind)
-
-func _spawn_flash(world_position: Vector2) -> void:
-	var flash := Node2D.new()
-	flash.set_script(PICKUP_SCRIPT)
-	add_child(flash)
-	flash.global_position = world_position
-	flash.setup("flash")
-
-func _play_upgrade_sfx(sound: AudioStream) -> void:
-	play_sfx(sound)
+	if rng.randf() >= 0.60:
+		return
+	var cell := ground.local_to_map(ground.to_local(world_position))
+	var player_cell := ground.local_to_map(ground.to_local(player.global_position))
+	if cell.y - player_cell.y <= 4:
+		return
+	var hp_roll := rng.randf()
+	var hp := 1 if hp_roll < 0.50 else (2 if hp_roll < 0.80 else 3)
+	var count := rng.randi_range(1, 3)
+	for i in range(count):
+		var enemy := Node2D.new()
+		enemy.set_script(ENEMY_SCRIPT)
+		add_child(enemy)
+		enemy.global_position = world_position + Vector2(rng.randi_range(-12, 12), rng.randi_range(-12, 12))
+		enemy.setup(hp, player, ground, self, rng.randi())
 
 func play_missile_launch_sound() -> void:
 	play_sfx(MISSILE_LAUNCH_SFX)
@@ -264,3 +182,8 @@ func _draw() -> void:
 		draw_line(center + Vector2(0, 0), center + Vector2(2, 6), Color("21150f"), 2.0)
 	if not game_over and not game_won:
 		draw_string(ThemeDB.fallback_font, Vector2(12, 24), "HOUSE %d / 10" % house_lives, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color("fff0aa"))
+		draw_string(ThemeDB.fallback_font, Vector2(12, 46), "EXCAVATOR %d / %d" % [excavator_health, EXCAVATOR_MAX_HEALTH], HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color("ffe0a0"))
+		var mining_mode: bool = player.get("mining_mode")
+		var mode_label := "MINERAL MODE" if mining_mode else "DIG MODE"
+		var mode_color := Color("7de3e8") if mining_mode else Color("ffd36b")
+		draw_string(ThemeDB.fallback_font, Vector2(12, 66), mode_label, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, mode_color)

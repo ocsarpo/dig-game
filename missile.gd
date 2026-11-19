@@ -3,9 +3,6 @@ extends Node2D
 var speed: float = 300.0
 var direction: Vector2 = Vector2.DOWN
 var level := 1
-var house_shot := false
-var target: Node2D
-var turn_speed := 3.0
 
 var life_time: float = 5.0
 var exploded: bool = false
@@ -27,30 +24,15 @@ func _process(delta: float) -> void:
 			queue_free()
 		return
 
-	if house_shot and is_instance_valid(target):
-		var desired := (target.global_position - global_position).normalized()
-		var turn := direction.angle_to(desired)
-		direction = direction.rotated(clampf(turn, -turn_speed * delta, turn_speed * delta)).normalized()
-		rotation = direction.angle()
 	position += direction * speed * delta
 
 	if ground != null:
 		var cell := ground.local_to_map(ground.to_local(global_position))
 		var manager: Variant = get_tree().current_scene.get_node_or_null("GameManager")
-		if not house_shot and manager != null and manager.is_bomb(cell):
-			manager.detonate_bomb(cell)
-			_explode(false)
-			return
-		if not house_shot and manager != null and ground.get_cell_source_id(cell) != -1:
+		if manager != null and ground.get_cell_source_id(cell) != -1:
 			manager.fire_hit(cell, level)
 			_explode()
 			return
-		if not house_shot and manager != null:
-			for pickup in get_tree().get_nodes_in_group("pickups"):
-				if pickup.global_position.distance_to(global_position) < 14.0:
-					manager.hit_pickup(pickup)
-					_explode()
-					return
 		for enemy in get_tree().get_nodes_in_group("enemies"):
 			if enemy.global_position.distance_to(global_position) < 14.0:
 				if manager != null:
@@ -64,14 +46,13 @@ func _process(delta: float) -> void:
 	if life_time <= 0:
 		queue_free()
 
-func _explode(play_sound: bool = true) -> void:
+func _explode() -> void:
 	exploded = true
 	explosion_time = 0.12
 	sprite.hide()
-	if play_sound:
-		var manager = get_tree().current_scene.get_node_or_null("GameManager")
-		if manager != null:
-			manager.play_missile_impact_sound()
+	var manager = get_tree().current_scene.get_node_or_null("GameManager")
+	if manager != null:
+		manager.play_missile_impact_sound()
 	queue_redraw()
 
 func _draw() -> void:

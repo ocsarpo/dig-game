@@ -8,6 +8,7 @@ var step_timer := 0.0
 var move_interval := 0.38
 var rng := RandomNumberGenerator.new()
 var siege_timer := 3.0
+var touching_player := false
 
 func setup(hp: int, target: Node2D, map: TileMapLayer, game_manager: Node2D, seed_value: int) -> void:
 	hit_points = hp * 2
@@ -18,6 +19,19 @@ func setup(hp: int, target: Node2D, map: TileMapLayer, game_manager: Node2D, see
 	add_to_group("enemies")
 
 func _process(delta: float) -> void:
+	if manager == null or manager.game_over or manager.game_won:
+		return
+	# Treat a vertically adjacent tile as contact; the pixel-art silhouettes nearly touch at this spacing.
+	var is_touching_player := global_position.distance_to(player.global_position) <= 32.0
+	if is_touching_player and not touching_player:
+		touching_player = true
+		manager.damage_excavator(1)
+		take_hit(1)
+		if manager.game_over or hit_points <= 0:
+			return
+	elif not is_touching_player:
+		touching_player = false
+
 	var current := ground.local_to_map(ground.to_local(global_position))
 	var top_row: int = manager.map_bounds.position.y
 	var defense_row := top_row + 1

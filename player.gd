@@ -5,10 +5,10 @@ extends Node2D
 @onready var sprite: Sprite2D = $Sprite2D
 const TILE_SIZE: int = 32
 const MOVE_INTERVAL: float = 0.15
-const MISSILE_SCENE = preload("res://missile.tscn")
 
 var move_timer: float = 0.0
 var facing_direction := Vector2.RIGHT
+var mining_mode := false
 
 func _ready() -> void:
 	sprite.hide()
@@ -20,16 +20,9 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if game_manager.game_over or game_manager.game_won:
 		return
-	if Input.is_action_just_pressed("radial_shot"):
-		# missile.tscn을 실제 게임 안에 하나 생성
-		var missile = MISSILE_SCENE.instantiate()
-		# 생성된 Missile을 Player 위치에 놓음
-		missile.global_position = global_position
-		missile.direction = Vector2.DOWN
-		missile.level = game_manager.missile_level
-		# Player와 같은 부모인 Main 아래에 Missile을 실제로 추가
-		get_parent().add_child(missile)
-		game_manager.play_missile_launch_sound()
+	if Input.is_action_just_pressed("toggle_mode"):
+		mining_mode = not mining_mode
+		game_manager.queue_redraw()
 
 	move_timer -= delta
 	if move_timer > 0:
