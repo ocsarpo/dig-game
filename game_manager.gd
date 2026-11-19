@@ -36,6 +36,7 @@ func _ready() -> void:
 		push_error("GameManager needs Ground, Player, House, and Overlay nodes in the current scene.")
 		set_process(false)
 		return
+	game_over_overlay.choice_selected.connect(_on_round_choice)
 	map_bounds = ground.get_used_rect()
 	var top_row := map_bounds.position.y
 	var center_x := map_bounds.position.x + int(map_bounds.size.x / 2)
@@ -159,12 +160,32 @@ func start_game_over() -> void:
 	game_over = true
 	play_sfx(HOUSE_EXPLOSION_SFX, 0.0)
 	game_over_overlay.begin_at_world_position(house.global_position)
+	_freeze_round_entities()
+
+func _freeze_round_entities() -> void:
 	for enemy in get_tree().get_nodes_in_group("enemies"):
 		enemy.set_process(false)
+	for missile in get_tree().get_nodes_in_group("missiles"):
+		missile.set_process(false)
+	for pickup in get_tree().get_nodes_in_group("pickups"):
+		pickup.set_process(false)
 
 func _unhandled_input(event: InputEvent) -> void:
 	if game_over and event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_R:
 		get_tree().reload_current_scene()
+	elif game_won and event is InputEventKey and event.pressed and not event.echo:
+		if event.keycode == KEY_1 or event.keycode == KEY_U:
+			_on_round_choice("upgrade")
+		elif event.keycode == KEY_2 or event.keycode == KEY_N:
+			_on_round_choice("next_round")
+		elif event.keycode == KEY_ENTER and game_over_overlay.mode == "pending":
+			game_over_overlay.show_round_clear()
+
+func _on_round_choice(choice: String) -> void:
+	if choice == "upgrade":
+		game_over_overlay.show_pending("SHOP IS THE NEXT TASK")
+	else:
+		game_over_overlay.show_pending("NEXT ROUND IS THE NEXT TASK")
 
 func _spawn_dirt_result(world_position: Vector2) -> void:
 	var roll := rng.randf()
@@ -228,9 +249,8 @@ func play_sfx(sound: AudioStream, volume_db: float = -4.0) -> void:
 func _check_win() -> void:
 	if not game_over and ground.get_used_cells().is_empty():
 		game_won = true
-		queue_redraw()
-		for enemy in get_tree().get_nodes_in_group("enemies"):
-			enemy.set_process(false)
+		game_over_overlay.show_round_clear()
+		_freeze_round_entities()
 
 func _neighbors() -> Array[Vector2i]:
 	return [Vector2i(-1, -1), Vector2i(0, -1), Vector2i(1, -1), Vector2i(-1, 0), Vector2i(1, 0), Vector2i(-1, 1), Vector2i(0, 1), Vector2i(1, 1)]
@@ -242,8 +262,5 @@ func _draw() -> void:
 		draw_line(center + Vector2(-5, -5), center + Vector2(0, 0), Color("21150f"), 2.0)
 		draw_line(center + Vector2(0, 0), center + Vector2(5, -3), Color("21150f"), 2.0)
 		draw_line(center + Vector2(0, 0), center + Vector2(2, 6), Color("21150f"), 2.0)
-	if game_won:
-		var center := get_viewport_rect().size * 0.5
-		draw_string(ThemeDB.fallback_font, center + Vector2(-60, 0), "YOU WIN!", HORIZONTAL_ALIGNMENT_LEFT, -1, 28, Color("fff0aa"))
-	elif not game_over:
+	if not game_over and not game_won:
 		draw_string(ThemeDB.fallback_font, Vector2(12, 24), "HOUSE %d / 10" % house_lives, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color("fff0aa"))

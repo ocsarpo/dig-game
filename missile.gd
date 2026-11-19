@@ -15,6 +15,7 @@ var explosion_time: float = 0.0
 @onready var sprite: Sprite2D = $Sprite2D
 
 func _ready() -> void:
+	add_to_group("missiles")
 	rotation = direction.angle()
 	sprite.hide()
 	queue_redraw()
