@@ -3,12 +3,11 @@ extends Node2D
 @onready var ground: TileMapLayer = $"../Ground"
 @onready var game_manager: Variant = $"../GameManager"
 @onready var sprite: Sprite2D = $Sprite2D
+const BALANCE = preload("res://game_balance.gd")
 const TILE_SIZE: int = 32
-const MOVE_INTERVAL: float = 0.15
 
 var move_timer: float = 0.0
 var facing_direction := Vector2.RIGHT
-var mining_mode := false
 
 func _ready() -> void:
 	sprite.hide()
@@ -20,9 +19,8 @@ func _ready() -> void:
 func _process(delta: float) -> void:
 	if game_manager.game_over or game_manager.game_won:
 		return
-	if Input.is_action_just_pressed("toggle_mode"):
-		mining_mode = not mining_mode
-		game_manager.queue_redraw()
+	if Input.is_action_just_pressed("work"):
+		_perform_work()
 
 	move_timer -= delta
 	if move_timer > 0:
@@ -34,27 +32,44 @@ func _process(delta: float) -> void:
 		direction = Vector2.RIGHT
 	elif Input.is_action_pressed("ui_left") or Input.is_key_pressed(KEY_A):
 		direction = Vector2.LEFT
+	elif Input.is_action_pressed("ui_up") or Input.is_key_pressed(KEY_W):
+		direction = Vector2.UP
+	elif Input.is_action_pressed("ui_down") or Input.is_key_pressed(KEY_S):
+		direction = Vector2.DOWN
 		
 	# 입력이 아무것도 없을 때
 	if direction == Vector2.ZERO:
 		return
-	if direction.x != 0.0:
-		facing_direction = direction
+	facing_direction = direction
+	queue_redraw()
 
 	var next_position = position + direction * TILE_SIZE
 	
 	if can_move_to(next_position):
 		position = next_position
 		
-	move_timer = MOVE_INTERVAL
+	move_timer = BALANCE.PLAYER_MOVE_INTERVAL
+
+func _perform_work() -> void:
+	var target_world_position := global_position + facing_direction * TILE_SIZE
+	var target_cell := ground.local_to_map(ground.to_local(target_world_position))
+	game_manager.dig_dirt(target_cell)
 
 func can_move_to(next_position: Vector2) -> bool:
 	var map_position = ground.local_to_map(next_position)
 	return game_manager.map_bounds.has_point(map_position) and ground.get_cell_source_id(map_position) == -1
 
 func _draw() -> void:
+	var visual_scale := 0.88
 	var rotation_angle := facing_direction.angle()
-	draw_set_transform(Vector2.ZERO, rotation_angle, Vector2.ONE)
+	var facing_scale := Vector2(visual_scale, visual_scale)
+	if facing_direction == Vector2.LEFT:
+		# Mirror horizontally so the crawler tracks stay beneath the excavator.
+		rotation_angle = 0.0
+		facing_scale.x = -visual_scale
+	# Center the asymmetric silhouette in its grid cell after rotation or mirroring.
+	var transformed_center := (Vector2(1.5, 1.5) * facing_scale).rotated(rotation_angle)
+	draw_set_transform(-transformed_center, rotation_angle, facing_scale)
 	var ink := Color("38251d")
 	var yellow := Color("f2b632")
 	var bright := Color("ffe06a")

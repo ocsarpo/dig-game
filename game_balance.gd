@@ -1,0 +1,29 @@
+extends RefCounted
+
+# Central runtime tuning values. Adjust these instead of scattering balance
+# numbers across gameplay scripts.
+const PLAYER_MOVE_INTERVAL := 0.15
+const EXCAVATOR_MAX_HEALTH := 3
+const HOUSE_MAX_HEALTH := 10
+const PLAYER_CONTACT_DAMAGE := 1
+const ENEMY_CONTACT_DAMAGE := 1
+const STARTING_CARRY_CAPACITY := 50
+const DIRT_WEIGHT := 1
+const DIRT_SELL_VALUE := 1
+const DIRT_DURABILITY := 2
+
+const ENEMY_SPAWN_CHANCE := 0.60
+const ENEMY_SAFE_DEPTH := 4
+const ENEMY_TIER_ONE_ROLL_MAX := 0.50
+const ENEMY_TIER_TWO_ROLL_MAX := 0.80
+const ENEMIES_PER_WARNING_BLOCK := 1
+const ENEMY_HEALTH_MULTIPLIER := 2
+const ENEMY_MOVE_INTERVAL := 0.38
+const ENEMY_RANDOM_MOVE_CHANCE := 0.28
+const ENEMY_PLAYER_CONTACT_DISTANCE := 32.0
+const ENEMY_DIRT_DAMAGE := 1
+const HOUSE_SIEGE_DAMAGE := 1
+const HOUSE_SIEGE_INTERVAL := 3.0
+
+const HOUSE_TURRET_LEVEL_TWO_INTERVAL := 10.0
+const HOUSE_TURRET_LEVEL_THREE_INTERVAL := 5.0

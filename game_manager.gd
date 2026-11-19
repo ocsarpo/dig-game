@@ -1,6 +1,7 @@
 extends Node2D
 
 const ENEMY_SCRIPT = preload("res://enemy.gd")
+const BALANCE = preload("res://game_balance.gd")
 const MISSILE_LAUNCH_SFX = preload("res://assets/audio/missile_launch.wav")
 const MISSILE_IMPACT_SFX = preload("res://assets/audio/missile_impact.wav")
 const ENEMY_HIT_SFX = preload("res://assets/audio/enemy_hit.wav")
@@ -10,12 +11,16 @@ var ground: TileMapLayer
 var player: Node2D
 
 var half_damaged: Dictionary = {}
+var enemy_warning_cells: Dictionary = {}
+var player_dig_progress: Dictionary = {}
 var missile_level := 1
 var game_over := false
 var game_won := false
-var house_lives := 10
-const EXCAVATOR_MAX_HEALTH := 3
+var house_lives := BALANCE.HOUSE_MAX_HEALTH
+const EXCAVATOR_MAX_HEALTH := BALANCE.EXCAVATOR_MAX_HEALTH
 var excavator_health := EXCAVATOR_MAX_HEALTH
+var carried_weight := 0
+var carry_capacity := BALANCE.STARTING_CARRY_CAPACITY
 var rng := RandomNumberGenerator.new()
 var map_bounds := Rect2i()
 var house: Node2D
@@ -34,6 +39,7 @@ func _ready() -> void:
 		return
 	game_over_overlay.choice_selected.connect(_on_round_choice)
 	map_bounds = ground.get_used_rect()
+	carried_weight = RunState.carried_dirt * BALANCE.DIRT_WEIGHT
 	var top_row := map_bounds.position.y
 	var center_x := map_bounds.position.x + int(map_bounds.size.x / 2)
 	for x in range(map_bounds.position.x, map_bounds.end.x):
@@ -44,36 +50,68 @@ func _ready() -> void:
 	# Keep the spawn tile open so the player never starts trapped in dirt.
 	ground.erase_cell(ground.local_to_map(ground.to_local(player.global_position)))
 
-func damage_dirt(cell: Vector2i, damage: int = 1) -> bool:
+func damage_dirt(cell: Vector2i, damage: int = BALANCE.ENEMY_DIRT_DAMAGE) -> bool:
 	if ground.get_cell_source_id(cell) == -1:
-		if half_damaged.has(cell):
+		if half_damaged.has(cell) or enemy_warning_cells.has(cell):
 			half_damaged.erase(cell)
+			enemy_warning_cells.erase(cell)
+			player_dig_progress.erase(cell)
 			queue_redraw()
 		return false
-	if damage >= 2 or half_damaged.has(cell):
+	if damage >= BALANCE.DIRT_DURABILITY or half_damaged.has(cell):
 		ground.erase_cell(cell)
 		half_damaged.erase(cell)
+		enemy_warning_cells.erase(cell)
+		player_dig_progress.erase(cell)
 		queue_redraw()
-		_spawn_dirt_result(ground.to_global(ground.map_to_local(cell)))
 		_check_win()
 		return true
 	half_damaged[cell] = true
 	queue_redraw()
 	return false
 
+func dig_dirt(cell: Vector2i) -> bool:
+	if game_over or game_won:
+		return false
+	if not map_bounds.has_point(cell) or ground.get_cell_source_id(cell) == -1:
+		return false
+	if carried_weight + BALANCE.DIRT_WEIGHT > carry_capacity:
+		return false
+	var contains_enemy := enemy_warning_cells.has(cell)
+	if not contains_enemy and not player_dig_progress.has(cell):
+		if _should_mark_enemy_dirt(cell):
+			enemy_warning_cells[cell] = true
+		else:
+			half_damaged[cell] = true
+			player_dig_progress[cell] = true
+		queue_redraw()
+		return false
+	var world_position := ground.to_global(ground.map_to_local(cell))
+	ground.erase_cell(cell)
+	half_damaged.erase(cell)
+	enemy_warning_cells.erase(cell)
+	player_dig_progress.erase(cell)
+	RunState.carried_dirt += 1
+	carried_weight = RunState.carried_dirt * BALANCE.DIRT_WEIGHT
+	queue_redraw()
+	if contains_enemy:
+		_spawn_enemies(world_position)
+	_check_win()
+	return true
+
 func fire_hit(cell: Vector2i, level: int) -> void:
 	if ground.get_cell_source_id(cell) == -1:
 		return
 	if level == 1:
-		damage_dirt(cell, 2)
+		damage_dirt(cell, BALANCE.DIRT_DURABILITY)
 	elif level == 2:
-		damage_dirt(cell, 2)
+		damage_dirt(cell, BALANCE.DIRT_DURABILITY)
 		for offset in _neighbors():
 			damage_dirt(cell + offset)
 	else:
 		for y in range(-1, 2):
 			for x in range(-1, 2):
-				damage_dirt(cell + Vector2i(x, y), 2)
+				damage_dirt(cell + Vector2i(x, y), BALANCE.DIRT_DURABILITY)
 
 func _process(_delta: float) -> void:
 	if game_over:
@@ -82,7 +120,7 @@ func _process(_delta: float) -> void:
 		return
 	_check_win()
 
-func damage_house(amount: int = 1) -> void:
+func damage_house(amount: int) -> void:
 	if game_over or game_won:
 		return
 	house_lives = maxi(0, house_lives - amount)
@@ -91,7 +129,7 @@ func damage_house(amount: int = 1) -> void:
 	if house_lives <= 0:
 		start_game_over()
 
-func damage_excavator(amount: int = 1) -> void:
+func damage_excavator(amount: int) -> void:
 	if game_over or game_won:
 		return
 	excavator_health = maxi(0, excavator_health - amount)
@@ -130,17 +168,16 @@ func _on_round_choice(choice: String) -> void:
 	else:
 		game_over_overlay.show_pending("NEXT ROUND IS THE NEXT TASK")
 
-func _spawn_dirt_result(world_position: Vector2) -> void:
-	if rng.randf() >= 0.60:
-		return
-	var cell := ground.local_to_map(ground.to_local(world_position))
-	var player_cell := ground.local_to_map(ground.to_local(player.global_position))
-	if cell.y - player_cell.y <= 4:
-		return
+func _should_mark_enemy_dirt(cell: Vector2i) -> bool:
+	var surface_row: int = map_bounds.position.y
+	if cell.y - surface_row <= BALANCE.ENEMY_SAFE_DEPTH:
+		return false
+	return rng.randf() < BALANCE.ENEMY_SPAWN_CHANCE
+
+func _spawn_enemies(world_position: Vector2) -> void:
 	var hp_roll := rng.randf()
-	var hp := 1 if hp_roll < 0.50 else (2 if hp_roll < 0.80 else 3)
-	var count := rng.randi_range(1, 3)
-	for i in range(count):
+	var hp := 1 if hp_roll < BALANCE.ENEMY_TIER_ONE_ROLL_MAX else (2 if hp_roll < BALANCE.ENEMY_TIER_TWO_ROLL_MAX else 3)
+	for i in range(BALANCE.ENEMIES_PER_WARNING_BLOCK):
 		var enemy := Node2D.new()
 		enemy.set_script(ENEMY_SCRIPT)
 		add_child(enemy)
@@ -180,10 +217,14 @@ func _draw() -> void:
 		draw_line(center + Vector2(-5, -5), center + Vector2(0, 0), Color("21150f"), 2.0)
 		draw_line(center + Vector2(0, 0), center + Vector2(5, -3), Color("21150f"), 2.0)
 		draw_line(center + Vector2(0, 0), center + Vector2(2, 6), Color("21150f"), 2.0)
+	for cell in enemy_warning_cells:
+		var center := to_local(ground.to_global(ground.map_to_local(cell)))
+		draw_rect(Rect2(center + Vector2(-7, -8), Vector2(14, 16)), Color("38251d"))
+		draw_rect(Rect2(center + Vector2(-5, -6), Vector2(10, 12)), Color("d92732"))
+		draw_rect(Rect2(center + Vector2(-1, -4), Vector2(2, 6)), Color("fff0aa"))
+		draw_rect(Rect2(center + Vector2(-1, 3), Vector2(2, 2)), Color("fff0aa"))
 	if not game_over and not game_won:
-		draw_string(ThemeDB.fallback_font, Vector2(12, 24), "HOUSE %d / 10" % house_lives, HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color("fff0aa"))
+		draw_string(ThemeDB.fallback_font, Vector2(12, 24), "HOUSE %d / %d" % [house_lives, BALANCE.HOUSE_MAX_HEALTH], HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color("fff0aa"))
 		draw_string(ThemeDB.fallback_font, Vector2(12, 46), "EXCAVATOR %d / %d" % [excavator_health, EXCAVATOR_MAX_HEALTH], HORIZONTAL_ALIGNMENT_LEFT, -1, 16, Color("ffe0a0"))
-		var mining_mode: bool = player.get("mining_mode")
-		var mode_label := "MINERAL MODE" if mining_mode else "DIG MODE"
-		var mode_color := Color("7de3e8") if mining_mode else Color("ffd36b")
-		draw_string(ThemeDB.fallback_font, Vector2(12, 66), mode_label, HORIZONTAL_ALIGNMENT_LEFT, -1, 16, mode_color)
+		var cargo_color := Color("ff7057") if carried_weight >= carry_capacity else Color("e6d3ad")
+		draw_string(ThemeDB.fallback_font, Vector2(12, 66), "LOAD %d / %d" % [carried_weight, carry_capacity], HORIZONTAL_ALIGNMENT_LEFT, -1, 16, cargo_color)

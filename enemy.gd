@@ -1,17 +1,19 @@
 extends Node2D
 
+const BALANCE = preload("res://game_balance.gd")
+
 var hit_points := 1
 var player: Node2D
 var ground: TileMapLayer
 var manager
 var step_timer := 0.0
-var move_interval := 0.38
+var move_interval := BALANCE.ENEMY_MOVE_INTERVAL
 var rng := RandomNumberGenerator.new()
-var siege_timer := 3.0
+var siege_timer := BALANCE.HOUSE_SIEGE_INTERVAL
 var touching_player := false
 
 func setup(hp: int, target: Node2D, map: TileMapLayer, game_manager: Node2D, seed_value: int) -> void:
-	hit_points = hp * 2
+	hit_points = hp * BALANCE.ENEMY_HEALTH_MULTIPLIER
 	player = target
 	ground = map
 	manager = game_manager
@@ -22,11 +24,11 @@ func _process(delta: float) -> void:
 	if manager == null or manager.game_over or manager.game_won:
 		return
 	# Treat a vertically adjacent tile as contact; the pixel-art silhouettes nearly touch at this spacing.
-	var is_touching_player := global_position.distance_to(player.global_position) <= 32.0
+	var is_touching_player := global_position.distance_to(player.global_position) <= BALANCE.ENEMY_PLAYER_CONTACT_DISTANCE
 	if is_touching_player and not touching_player:
 		touching_player = true
-		manager.damage_excavator(1)
-		take_hit(1)
+		manager.damage_excavator(BALANCE.PLAYER_CONTACT_DAMAGE)
+		take_hit(BALANCE.ENEMY_CONTACT_DAMAGE)
 		if manager.game_over or hit_points <= 0:
 			return
 	elif not is_touching_player:
@@ -38,8 +40,8 @@ func _process(delta: float) -> void:
 	if current.y <= defense_row:
 		siege_timer -= delta
 		if siege_timer <= 0.0:
-			manager.damage_house(1)
-			siege_timer = 3.0
+			manager.damage_house(BALANCE.HOUSE_SIEGE_DAMAGE)
+			siege_timer = BALANCE.HOUSE_SIEGE_INTERVAL
 		return
 	step_timer -= delta
 	if step_timer > 0.0:
@@ -50,15 +52,15 @@ func _process(delta: float) -> void:
 	choices.sort_custom(func(a: Vector2i, b: Vector2i) -> bool:
 		return (current + a).distance_to(target) < (current + b).distance_to(target)
 	)
-	var step: Vector2i = choices[0] if rng.randf() > 0.28 else choices[rng.randi_range(0, choices.size() - 1)]
+	var step: Vector2i = choices[0] if rng.randf() > BALANCE.ENEMY_RANDOM_MOVE_CHANCE else choices[rng.randi_range(0, choices.size() - 1)]
 	var next_cell := current + step
 	if next_cell.y < defense_row:
 		next_cell = Vector2i(next_cell.x, defense_row)
 	if manager.map_bounds.has_point(next_cell):
 		global_position = ground.to_global(ground.map_to_local(next_cell))
-		manager.damage_dirt(next_cell)
+		manager.damage_dirt(next_cell, BALANCE.ENEMY_DIRT_DAMAGE)
 		if next_cell.y <= defense_row:
-			siege_timer = 3.0
+			siege_timer = BALANCE.HOUSE_SIEGE_INTERVAL
 	queue_redraw()
 
 func take_hit(damage: int = 1) -> void:
