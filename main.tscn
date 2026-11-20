@@ -6,6 +6,9 @@
 [ext_resource type="Script" path="res://game_manager.gd" id="4_manager"]
 [ext_resource type="Script" path="res://house.gd" id="5_house"]
 [ext_resource type="Script" path="res://game_over_overlay.gd" id="6_game_over_overlay"]
+[ext_resource type="Script" path="res://shop.gd" id="7_shop"]
+[ext_resource type="Script" path="res://shop_menu.gd" id="8_shop_menu"]
+[ext_resource type="Script" path="res://damage_feedback.gd" id="9_damage_feedback"]
 
 [sub_resource type="TileSetAtlasSource" id="TileSetAtlasSource_0xm2m"]
 texture = ExtResource("1_ig7tw")
@@ -28,12 +31,42 @@ tile_set = SubResource("TileSet_qnpof")
 [node name="House" type="Node2D" parent="."]
 script = ExtResource("5_house")
 
+[node name="Shop" type="Node2D" parent="."]
+script = ExtResource("7_shop")
+
 [node name="Player" type="Node2D" parent="." unique_id=1215953796]
 position = Vector2(16, 16)
 script = ExtResource("2_h2yge")
 
 [node name="GameManager" type="Node2D" parent="."]
 script = ExtResource("4_manager")
+
+[node name="ShopLayer" type="CanvasLayer" parent="."]
+layer = 50
+
+[node name="ShopMenu" type="Control" parent="ShopLayer"]
+visible = false
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 0
+script = ExtResource("8_shop_menu")
+
+[node name="DamageFeedbackLayer" type="CanvasLayer" parent="."]
+layer = 90
+
+[node name="DamageFeedback" type="Control" parent="DamageFeedbackLayer"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+script = ExtResource("9_damage_feedback")
 
 [node name="GameOverLayer" type="CanvasLayer" parent="."]
 layer = 100

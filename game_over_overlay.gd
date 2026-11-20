@@ -66,29 +66,29 @@ func _draw() -> void:
 		if elapsed >= 1.8:
 			var center := size * 0.5
 			_draw_panel(center)
-			draw_string(ThemeDB.fallback_font, center + Vector2(-99, -2), "ROUND FAILED", HORIZONTAL_ALIGNMENT_LEFT, -1, 25, Color.WHITE)
-			draw_string(ThemeDB.fallback_font, center + Vector2(-144, 34), "PRESS R TO RETRY THIS ROUND", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color.WHITE)
+			draw_string(ThemeDB.fallback_font, center + Vector2(-99, -2), "라운드 실패", HORIZONTAL_ALIGNMENT_LEFT, -1, 25, Color.WHITE)
+			draw_string(ThemeDB.fallback_font, center + Vector2(-144, 34), "R 키로 현재 라운드 재도전", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color.WHITE)
 	elif mode == "player_fire":
 		_draw_player_fire(blast_center)
 		if elapsed >= 1.8:
 			var center := size * 0.5
 			_draw_panel(center)
-			draw_string(ThemeDB.fallback_font, center + Vector2(-99, -2), "ROUND FAILED", HORIZONTAL_ALIGNMENT_LEFT, -1, 25, Color.WHITE)
-			draw_string(ThemeDB.fallback_font, center + Vector2(-144, 34), "PRESS R TO RETRY THIS ROUND", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color.WHITE)
+			draw_string(ThemeDB.fallback_font, center + Vector2(-99, -2), "라운드 실패", HORIZONTAL_ALIGNMENT_LEFT, -1, 25, Color.WHITE)
+			draw_string(ThemeDB.fallback_font, center + Vector2(-144, 34), "R 키로 현재 라운드 재도전", HORIZONTAL_ALIGNMENT_LEFT, -1, 15, Color.WHITE)
 	elif mode == "clear":
 		var center := size * 0.5
 		_draw_panel(center)
-		draw_string(ThemeDB.fallback_font, center + Vector2(-106, -24), "ROUND CLEARED", HORIZONTAL_ALIGNMENT_LEFT, -1, 24, Color.WHITE)
+		draw_string(ThemeDB.fallback_font, center + Vector2(-106, -24), "라운드 클리어", HORIZONTAL_ALIGNMENT_LEFT, -1, 24, Color.WHITE)
 		draw_rect(Rect2(center + Vector2(-180, 4), Vector2(160, 42)), Color("70412e"))
 		draw_rect(Rect2(center + Vector2(20, 4), Vector2(160, 42)), Color("70412e"))
 		draw_string(ThemeDB.fallback_font, center + Vector2(-141, 32), "강화", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color.WHITE)
 		draw_string(ThemeDB.fallback_font, center + Vector2(45, 32), "다음 라운드", HORIZONTAL_ALIGNMENT_LEFT, -1, 18, Color.WHITE)
-		draw_string(ThemeDB.fallback_font, center + Vector2(-106, 68), "CLICK AN OPTION", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color("f3d9ad"))
+		draw_string(ThemeDB.fallback_font, center + Vector2(-106, 68), "선택지를 클릭하세요", HORIZONTAL_ALIGNMENT_LEFT, -1, 13, Color("f3d9ad"))
 	elif mode == "pending":
 		var center := size * 0.5
 		_draw_panel(center)
 		draw_string(ThemeDB.fallback_font, center + Vector2(-140, 2), message, HORIZONTAL_ALIGNMENT_LEFT, -1, 17, Color.WHITE)
-		draw_string(ThemeDB.fallback_font, center + Vector2(-92, 35), "PRESS ENTER", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color("f3d9ad"))
+		draw_string(ThemeDB.fallback_font, center + Vector2(-92, 35), "Enter 키로 돌아가기", HORIZONTAL_ALIGNMENT_LEFT, -1, 14, Color("f3d9ad"))
 
 func _draw_panel(center: Vector2) -> void:
 	draw_rect(Rect2(center + Vector2(-200, -58), Vector2(400, 132)), Color("38251d"))

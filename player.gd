@@ -5,8 +5,10 @@ extends Node2D
 @onready var sprite: Sprite2D = $Sprite2D
 const BALANCE = preload("res://game_balance.gd")
 const TILE_SIZE: int = 32
+const WORK_ANIMATION_DURATION := 0.16
 
 var move_timer: float = 0.0
+var work_animation_timer := 0.0
 var facing_direction := Vector2.RIGHT
 
 func _ready() -> void:
@@ -17,8 +19,11 @@ func _ready() -> void:
 # 60 FPS  → delta ≈ 1 / 60 ≈ 0.0167초
 # 120 FPS → delta ≈ 1 / 120 ≈ 0.0083초
 func _process(delta: float) -> void:
-	if game_manager.game_over or game_manager.game_won:
+	if game_manager.game_over or game_manager.game_won or game_manager.shop_open:
 		return
+	if work_animation_timer > 0.0:
+		work_animation_timer = maxf(0.0, work_animation_timer - delta)
+		queue_redraw()
 	if Input.is_action_just_pressed("work"):
 		_perform_work()
 
@@ -47,22 +52,29 @@ func _process(delta: float) -> void:
 	
 	if can_move_to(next_position):
 		position = next_position
+		game_manager.queue_redraw()
 		
 	move_timer = BALANCE.PLAYER_MOVE_INTERVAL
 
 func _perform_work() -> void:
 	var target_world_position := global_position + facing_direction * TILE_SIZE
 	var target_cell := ground.local_to_map(ground.to_local(target_world_position))
-	game_manager.dig_dirt(target_cell)
+	if game_manager.dig_dirt(target_cell):
+		work_animation_timer = WORK_ANIMATION_DURATION
+		queue_redraw()
 
 func can_move_to(next_position: Vector2) -> bool:
 	var map_position = ground.local_to_map(next_position)
-	return game_manager.map_bounds.has_point(map_position) and ground.get_cell_source_id(map_position) == -1
+	return game_manager.map_bounds.has_point(map_position) and ground.get_cell_source_id(map_position) == -1 and not game_manager.ore_cells.has(map_position)
 
 func _draw() -> void:
 	var visual_scale := 0.88
 	var rotation_angle := facing_direction.angle()
 	var facing_scale := Vector2(visual_scale, visual_scale)
+	var arm_push := 0.0
+	if work_animation_timer > 0.0:
+		var work_phase := 1.0 - work_animation_timer / WORK_ANIMATION_DURATION
+		arm_push = float(roundi(sin(work_phase * PI) * 4.0))
 	if facing_direction == Vector2.LEFT:
 		# Mirror horizontally so the crawler tracks stay beneath the excavator.
 		rotation_angle = 0.0
@@ -91,12 +103,12 @@ func _draw() -> void:
 	draw_rect(Rect2(-1, -2, 2, 3), ink)
 
 	# Boom, stick, and bucket form a readable excavator profile.
-	draw_line(Vector2(5, -3), Vector2(10, -9), ink, 6.0)
-	draw_line(Vector2(5, -3), Vector2(10, -9), bright, 3.0)
-	draw_line(Vector2(10, -9), Vector2(13, -4), ink, 5.0)
-	draw_line(Vector2(10, -9), Vector2(13, -4), yellow, 2.0)
-	draw_rect(Rect2(10, -3, 7, 8), ink)
-	draw_rect(Rect2(11, -2, 5, 4), yellow)
-	draw_rect(Rect2(13, 2, 3, 2), bright)
+	draw_line(Vector2(5, -3), Vector2(10 + arm_push, -9), ink, 6.0)
+	draw_line(Vector2(5, -3), Vector2(10 + arm_push, -9), bright, 3.0)
+	draw_line(Vector2(10 + arm_push, -9), Vector2(13 + arm_push, -4), ink, 5.0)
+	draw_line(Vector2(10 + arm_push, -9), Vector2(13 + arm_push, -4), yellow, 2.0)
+	draw_rect(Rect2(10 + arm_push, -3, 7, 8), ink)
+	draw_rect(Rect2(11 + arm_push, -2, 5, 4), yellow)
+	draw_rect(Rect2(13 + arm_push, 2, 3, 2), bright)
 
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
